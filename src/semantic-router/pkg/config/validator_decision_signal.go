@@ -65,7 +65,11 @@ func validateDecisionDeployment(cfg *RouterConfig, deployment, asker string) err
 	if deployment != "" {
 		return validateModelRuntimeReference(cfg, deployment)
 	}
-	if _, _, _, err := cfg.DecisionModelDeployment(); err != nil {
+	name, resource, _, err := cfg.DecisionModelDeployment()
+	if err == nil {
+		err = resource.ValidateDecisionInput(name)
+	}
+	if err != nil {
 		return fmt.Errorf("default decision deployment for %s: %w", asker, err)
 	}
 	return nil

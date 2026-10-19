@@ -106,6 +106,24 @@ func TestDecisionSignalContracts(t *testing.T) {
 	}
 }
 
+func TestDecisionSignalDefaultDeploymentTakesNoInputBudget(t *testing.T) {
+	cfg := decisionSignalConfig()
+	cfg.DecisionModel = "decider"
+	for index := range cfg.DecisionRules {
+		cfg.DecisionRules[index].Deployment = ""
+	}
+	if err := validateDecisionSignalContracts(cfg); err != nil {
+		t.Fatal(err)
+	}
+	decider := cfg.ModelDeployments["decider"]
+	decider.Input = ModelInputBudget{MaxTokens: 32768, Overflow: "reject"}
+	cfg.ModelDeployments["decider"] = decider
+	err := validateDecisionSignalContracts(cfg)
+	if err == nil || !strings.Contains(err.Error(), "never truncate") {
+		t.Fatalf("expected the default deployment input budget to be refused, got %v", err)
+	}
+}
+
 // labelledDecisionConfig adds a Vela 2.0 deployment with a set and a span question.
 func labelledDecisionConfig() *RouterConfig {
 	cfg := decisionSignalConfig()
