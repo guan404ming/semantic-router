@@ -96,3 +96,45 @@ func TestAnthropicStreamAcceptsContextAndThinkingTelemetry(t *testing.T) {
 		}
 	}
 }
+
+func TestAnthropicResponseAcceptsUsageSpeed(t *testing.T) {
+	engine := NewBuiltinEngine()
+	body := []byte(`{"id":"msg1","type":"message","role":"assistant","model":"m","content":[{"type":"text","text":"OK"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":2,"output_tokens":1,"service_tier":"standard","inference_geo":"global","speed":"standard"}}`)
+	result, err := engine.TranslateResponse(llmprotocol.AnthropicMessagesV1, llmprotocol.AnthropicMessagesV1, body, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(result.Body, body) {
+		t.Fatalf("same-format response changed: %s", result.Body)
+	}
+	translated, err := engine.TranslateResponse(llmprotocol.AnthropicMessagesV1, llmprotocol.OpenAIChatV1, body, nil)
+	if err != nil || !hasDiagnostic(translated.Diagnostics, "usage.speed", llmprotocol.DiagnosticDropped) {
+		t.Fatalf("cross-format usage.speed loss was silent: result=%+v error=%v", translated, err)
+	}
+}
+
+func TestAnthropicStreamAcceptsUsageSpeed(t *testing.T) {
+	decoder := AnthropicMessagesCodec{}.NewDecoder(llmprotocol.StreamContext{Context: context.Background()}, llmprotocol.DefaultPolicy())
+	frames := []string{
+		`{"type":"message_start","message":{"id":"msg1","type":"message","role":"assistant","model":"m","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":2,"output_tokens":0,"service_tier":"standard","inference_geo":"global","speed":"standard"}}}`,
+		`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+		`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"OK"}}`,
+		`{"type":"content_block_stop","index":0}`,
+		`{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}`,
+		`{"type":"message_stop"}`,
+	}
+	for _, frame := range frames {
+		var event struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(frame), &event); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := decoder.Push([]byte("event: " + event.Type + "\ndata: " + frame + "\n\n")); err != nil {
+			t.Fatalf("%s: %v", event.Type, err)
+		}
+	}
+	if _, _, err := decoder.Finalize(nil); err != nil {
+		t.Fatal(err)
+	}
+}

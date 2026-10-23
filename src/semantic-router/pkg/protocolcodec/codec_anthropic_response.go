@@ -33,6 +33,7 @@ type anthropicUsageWire struct {
 	OutputTokensDetails      anthropicOutputUsageDetailsWire  `json:"output_tokens_details"`
 	ServerToolUse            anthropicServerToolUsageWire     `json:"server_tool_use"`
 	ServiceTier              string                           `json:"service_tier"`
+	Speed                    string                           `json:"speed,omitempty"`
 	Iterations               []json.RawMessage                `json:"iterations,omitempty"`
 }
 
@@ -137,6 +138,7 @@ func appendAnthropicResponseUsage(
 		"usage.server_tool_use": usage.ServerToolUse.WebFetchRequests != 0 ||
 			usage.ServerToolUse.WebSearchRequests != 0,
 		"usage.service_tier": usage.ServiceTier != "",
+		"usage.speed":        usage.Speed != "",
 		"usage.iterations":   len(usage.Iterations) > 0,
 	}, "provider usage metadata has no neutral accounting bucket")
 }
