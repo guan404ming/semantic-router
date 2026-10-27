@@ -124,6 +124,28 @@ func TestDashboardRoutePoliciesSeparateSecurityDomains(t *testing.T) {
 	}
 }
 
+func TestHeadFollowsTheGetRoutePolicy(t *testing.T) {
+	server := setupRouteInventoryServer(t)
+	for _, test := range []struct {
+		path string
+		want int
+	}{
+		{"/healthz", http.StatusOK},
+		{"/api/instance", http.StatusUnauthorized},
+		{"/api/dsl/compile", http.StatusMethodNotAllowed},
+	} {
+		response := httptest.NewRecorder()
+		server.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodHead, test.path, nil))
+		if response.Code != test.want {
+			t.Errorf("HEAD %s status=%d, want %d", test.path, response.Code, test.want)
+		}
+	}
+	if policy, lookup := server.routePolicies.LookupRoutePolicy(http.MethodHead, "/api/instance"); lookup != auth.RouteFound ||
+		policy.Permission != auth.PermConfigRead {
+		t.Errorf("HEAD /api/instance lookup=%v policy=%+v, want the GET config.read policy", lookup, policy)
+	}
+}
+
 func TestWebSearchRateLimitStatsRouteIsReadOnly(t *testing.T) {
 	server := setupRouteInventoryServer(t)
 	policy, lookup := server.routePolicies.LookupRoutePolicy(http.MethodGet, "/api/tools/web-search/stats")

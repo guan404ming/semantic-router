@@ -129,6 +129,9 @@ func (m *PolicyMux) LookupRoutePolicy(method, path string) (RoutePolicy, RouteLo
 			return policy, RouteFound
 		}
 	}
+	if method == http.MethodHead {
+		return m.LookupRoutePolicy(http.MethodGet, path)
+	}
 	if method == http.MethodOptions {
 		return RoutePolicy{
 			Method:        http.MethodOptions,
