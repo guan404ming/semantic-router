@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import configparser
+import json
 import os
 import shutil
 import subprocess
@@ -15,6 +16,11 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 ORIGINS = "https://dashboard.example.com,https://dashboard.example.net:8443"
 ENV_NAME = "GF_LIVE_ALLOWED_ORIGINS"
+RETIRED_FAMILIES = (
+    "llm_model_error_rate_windowed",
+    "llm_model_queue_depth_estimated",
+    "llm_model_utilization_percentage",
+)
 
 
 def run(*command: str, **kwargs) -> str:
@@ -147,6 +153,24 @@ class StaticGrafanaLiveTests(unittest.TestCase):
                 rendered = run("kubectl", "kustomize", tmp)
                 expected = grafana_env(default) | {ENV_NAME: ORIGINS}
                 self.assertEqual(grafana_env(rendered), expected)
+
+
+class StaticGrafanaDashboardTests(unittest.TestCase):
+    def test_dashboards_query_no_retired_families(self):
+        for platform in ("kubernetes", "openshift"):
+            with self.subTest(platform=platform):
+                path = ROOT / "deploy" / platform / "observability/grafana"
+                configmap = yaml.safe_load(
+                    (path / "configmap-dashboard.yaml").read_text()
+                )
+                dashboard = json.loads(configmap["data"]["llm-router-dashboard.json"])
+                expressions = "\n".join(
+                    target["expr"]
+                    for panel in dashboard["panels"]
+                    for target in panel.get("targets", [])
+                )
+                for family in RETIRED_FAMILIES:
+                    self.assertNotIn(family, expressions)
 
 
 # Only local YAML operations use the real kubectl. All cluster operations are
